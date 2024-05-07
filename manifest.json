@@ -34,7 +34,9 @@
         }
     ],
     "permissions": [
-        "webRequest",
+        "webRequest"
+    ],
+    "host_permissions": [
         "https://www.zhipin.com/*",
         "https://sou.zhaopin.com/*"
     ]
