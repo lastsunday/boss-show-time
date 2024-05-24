@@ -1,7 +1,7 @@
 const LEVEL_TRACE = 0;
 const LEVEL_DEBUG = 1;
 const LEVEL_INFO = 2;
-const logLevel = LEVEL_DEBUG;
+const logLevel = LEVEL_INFO;
 
 export function infoLog(message){
     if(logLevel <= LEVEL_INFO){

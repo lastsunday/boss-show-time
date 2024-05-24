@@ -8,10 +8,9 @@ import lagouFirstOpen from './plantforms/lagou/firstOpen.js';
 import './app.css'; // 为了能够走打包逻辑，如果不想在这写，那么直接放在 webpack 里也行
 import { createLink, createScript } from './utils.js';
 import $ from 'jquery';
-import {debugLog} from "./log";
-import {WORKER_ACTION_INIT, WORKER_ACTION_QUERY} from "./common.js";
+import {initBridge} from "./api/common.js";
 
-(function() {
+(async function() {
     // 这里的 window 和页面的 window 不是同一个
     window.$ = window.jQuery = $;
     const head = document.head;
@@ -61,7 +60,8 @@ import {WORKER_ACTION_INIT, WORKER_ACTION_QUERY} from "./common.js";
         }
     })
 
-    window.addEventListener('proxyScriptLoaded', function(e) {
+    window.addEventListener('proxyScriptLoaded', async function(e) {
+        await initBridge();
         // 不通过直接注入脚本的方式处理 ssr 页面，否则一些引入的模块需要重新打包
         if(location.host === 'sou.zhaopin.com') {
             // 智联招聘首次打开
@@ -76,19 +76,5 @@ import {WORKER_ACTION_INIT, WORKER_ACTION_QUERY} from "./common.js";
         }
         
     })
-    var callbackIdInit = new Date().getTime()+"init";
-    var callbackIdQuery = new Date().getTime()+"query";
-    var port = chrome.runtime.connect({name: "bridge"});
-    port.onMessage.addListener(function(message) {
-        if(callbackIdInit == message.callbackId){
-            var subMessage = {action:WORKER_ACTION_QUERY,callbackId:callbackIdQuery};
-            setInterval(()=>{
-                port.postMessage(subMessage);
-            },1000);
-        }
-        debugLog("[content script][receive][background -> content script] message = "+JSON.stringify(message));
-    });
-    var message = {action:WORKER_ACTION_INIT,callbackId:callbackIdInit};
-    port.postMessage(message);
-    debugLog("[content script][send][content script -> background] message = "+JSON.stringify(message));
+    
 })();

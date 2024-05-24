@@ -3,5 +3,7 @@ export const JOB_STATUS_DESC_RECRUITING = { key: "招聘中", label: "招聘中"
 export const JOB_STATUS_DESC_UNKNOW = { label: "未知", order: 2 };
 
 
-export const WORKER_ACTION_INIT = "WORKER_ACTION_INIT";
-export const WORKER_ACTION_QUERY = "WORKER_ACTION_QUERY";
+export const PLATFORM_BOSS = "PLATFORM_BOSS";
+export const PLATFORM_51JOB = "PLATFORM_51JOB";
+export const PLATFORM_ZHILIAN = "PLATFORM_ZHILIAN";
+export const PLATFORM_LAGOU = "PLATFORM_LAGOU";
