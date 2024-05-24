@@ -5,6 +5,8 @@ import { Message } from '../api/bridge';
 import dayjs from 'dayjs';
 import { JobDTO } from '../dto/jobDTO';
 import { toHump } from '../utils';
+import { ChangeLogV1 } from './changeLog/ChangeLogV1';
+import { initChangeLog, getChangeLogList } from './changeLog';
 debugLog('worker ready');
 
 var db;
@@ -17,11 +19,14 @@ export const WorkerBridge = {
    */
   init: function (message, param) {
     debugLog('Loading and initializing sqlite3 module...');
+    let changelogList = [];
+    changelogList.push(new ChangeLogV1());
+    initChangeLog(changelogList);
     sqlite3InitModule({
       print: debugLog,
       printErr: infoLog,
     }).then(function (sqlite3) {
-      debugLog('Done initializing. Running demo...');
+      debugLog('Done initializing. Running app...');
       try {
         initDb(sqlite3);
         postSuccessMessage(message);
@@ -178,40 +183,6 @@ for (var i = 0; i < keys.length; i++) {
   ACTION_FUNCTION.set(key, WorkerBridge[key]);
 }
 
-const SQL_CREATE_TABLE_JOB = `
-  CREATE TABLE IF NOT EXISTS job(
-    job_id TEXT PRIMARY KEY,
-    job_platform TEXT,
-    job_url TEXT, 
-    job_name TEXT,
-    job_company_name TEXT,
-    job_location_name TEXT,
-    job_address TEXT,
-    job_longitude NUMERIC,
-    job_latitude NUMERIC,
-    job_description TEXT,
-    job_degree_name TEXT,
-    job_year TEXT,
-    job_salary_min TEXT,
-    job_salary_max TEXT,
-    job_salary_total_month TEXT,
-    boss_name TEXT,
-    boss_company_name  TEXT,
-    boss_position TEXT,
-    data_source TEXT,
-    create_datetime DATETIME,
-    update_datetime DATETIME
-  )
-  `;
-
-const SQL_CREATE_TABLE_JOB_BROWSE_HISTORY = `
-  CREATE TABLE IF NOT EXISTS job_browse_history(
-    job_id TEXT,
-    job_visit_datetime DATETIME,
-    job_visit_type TEXT
-  )
-  `;
-
 const initDb = function (sqlite3) {
   const capi = sqlite3.capi; // C-style API
   const oo = sqlite3.oo1; // High-level OO API
@@ -223,23 +194,91 @@ const initDb = function (sqlite3) {
 
   if ('OpfsDb' in oo) {
     db = new oo.OpfsDb('/job.sqlite3');
-    debugLog('The OPFS is available.');
-    debugLog('Persisted db =', db.filename);
+    debugLog('[DB] The OPFS is available.');
+    debugLog('[DB] Persisted db =', db.filename);
   } else {
     db = new oo.DB('/job.sqlite3', 'ct');
-    debugLog('The OPFS is not available.');
-    debugLog('transient db =', db.filename);
+    debugLog('[DB] The OPFS is not available.');
+    debugLog('[DB] transient db =', db.filename);
   }
-
-  //TODO add sql version auto update
-  db.exec({
-    sql: 'BEGIN TRANSACTION',
-  });
-  db.exec(SQL_CREATE_TABLE_JOB);
-  db.exec(SQL_CREATE_TABLE_JOB_BROWSE_HISTORY);
-  db.exec({
-    sql: 'COMMIT',
-  });
+  infoLog('[DB] schema checking...');
+  let changelogList = getChangeLogList();
+  let oldVersion = 0;
+  let newVersion = changelogList.length;
+  try {
+    db.exec({
+      sql: 'BEGIN TRANSACTION',
+    });
+    const SQL_CREATE_TABLE_VERSION = `
+    CREATE TABLE IF NOT EXISTS version(
+      num INTEGER
+    )
+  `;
+    db.exec(SQL_CREATE_TABLE_VERSION);
+    const SQL_QUERY_VERSION = 'SELECT num FROM version';
+    var rows = [];
+    db.exec({
+      sql: SQL_QUERY_VERSION,
+      rowMode: 'object', // 'array' (default), 'object', or 'stmt'
+      resultRows: rows,
+    });
+    if (rows.length > 0) {
+      oldVersion = rows[0].num;
+    } else {
+      const SQL_INSERT_VERSION = `INSERT INTO version(num) values($num)`;
+      db.exec({
+        sql: SQL_INSERT_VERSION,
+        bind: { $num: 0 },
+      });
+    }
+    infoLog(
+      '[DB] schema oldVersion = ' + oldVersion + ', newVersion = ' + newVersion
+    );
+    if (newVersion > oldVersion) {
+      infoLog('[DB] schema upgrade start');
+      for (let i = oldVersion; i < newVersion; i++) {
+        let currentVersion = i + 1;
+        let changelog = changelogList[i];
+        let sqlList = changelog.getSqlList();
+        infoLog(
+          '[DB] schema upgrade changelog version = ' +
+            currentVersion +
+            ', sql total = ' +
+            sqlList.length
+        );
+        for (let seq = 0; seq < sqlList.length; seq++) {
+          infoLog(
+            '[DB] schema upgrade changelog version = ' +
+              currentVersion +
+              ', execute sql = ' +
+              (seq + 1) +
+              '/' +
+              sqlList.length
+          );
+          let sql = sqlList[seq];
+          db.exec(sql);
+        }
+      }
+      const SQL_UPDATE_VERSION = `UPDATE version SET num = $num`;
+      db.exec({
+        sql: SQL_UPDATE_VERSION,
+        bind: { $num: newVersion },
+      });
+      infoLog('[DB] schema upgrade finish to version = ' + newVersion);
+      infoLog('[DB] current schema version = ' + newVersion);
+    } else {
+      infoLog('[DB] skip schema upgrade');
+      infoLog('[DB] current schema version = ' + oldVersion);
+    }
+    db.exec({
+      sql: 'COMMIT',
+    });
+  } catch (e) {
+    console.error('[DB] schema upgrade fail,' + e.message);
+    db.exec({
+      sql: 'ROLLBACK TRANSACTION',
+    });
+  }
 };
 
 onmessage = function (e) {

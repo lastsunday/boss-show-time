@@ -2,12 +2,7 @@ import { getRandomInt } from "../utils";
 import { debugLog } from "../log";
 
 const callbackPromiseHookMap = new Map();
-// var portInstance;
 var seq = 0;
-
-export function init(){
-    
-}
 
 export function invoke(action,param){
     var promise = new Promise((resolve,reject)=>{

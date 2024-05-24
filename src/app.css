@@ -7,6 +7,7 @@
     padding: 0 8px;
     font-size: 14px;
     border-radius: 0 0 0 4px;
+    text-align: right;
 }
 /* 
 .__zhipin_time_tag {
@@ -29,6 +30,7 @@
     padding: 0 8px;
     font-size: 14px;
     border-radius: 0 0 0 4px;
+    text-align: right;
 }
 
 /* 与BOSS直聘的筛选器样式 .condition-filter-select .current-select 保持一致*/

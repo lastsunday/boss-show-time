@@ -42,20 +42,6 @@ export function renderTimeTag(
     firstPublishTimeTag.classList.add('__time_tag_base_text_font');
     divElement.appendChild(firstPublishTimeTag);
   }
-  if (jobDTO) {
-    var firstBrowseTimeTag = document.createElement('span');
-    var firstBrowseTimeHumanReadable = convertTimeOffsetToHumanReadable(
-      jobDTO.createDatetime
-    );
-    firstBrowseTimeTag.innerHTML +=
-      '【' +
-      firstBrowseTimeHumanReadable +
-      '看过(共' +
-      jobDTO.browseCount +
-      '次)】';
-    firstBrowseTimeTag.classList.add('__time_tag_base_text_font');
-    divElement.appendChild(firstBrowseTimeTag);
-  }
   //companyInfo
   var companyInfoTag = null;
   var companyInfoText = getCompanyInfoText(brandName);
@@ -70,6 +56,20 @@ export function renderTimeTag(
     firstPublishTime ?? null,
     jobStatusDesc
   );
+  if (jobDTO) {
+    var firstBrowseTimeTag = document.createElement('div');
+    var firstBrowseTimeHumanReadable = convertTimeOffsetToHumanReadable(
+      jobDTO.createDatetime
+    );
+    firstBrowseTimeTag.innerHTML +=
+      '【' +
+      firstBrowseTimeHumanReadable +
+      '看过(共' +
+      jobDTO.browseCount +
+      '次)】';
+    firstBrowseTimeTag.classList.add('__time_tag_base_text_font');
+    divElement.appendChild(firstBrowseTimeTag);
+  }
   divElement.classList.add('__time_tag_base_text_font');
 }
 
