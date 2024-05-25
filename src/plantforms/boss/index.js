@@ -3,7 +3,8 @@ import {
   renderTimeTag,
   setupSortJobItem,
   renderSortJobItem,
-  renderTimeLoadingTag,
+  createLoadingDOM,
+  hiddenLoadingDOM,
 } from "../../commonRender";
 import { getRandomInt } from "../../utils";
 import onlineFilter from "./onlineFilter";
@@ -87,7 +88,7 @@ function parseBossData(list, getListItem) {
       "https://www.zhipin.com/wapi/zpgeek/job/detail.json?securityId=" +
       securityId;
     urlList.push(pureJobItemDetailUrl);
-    let loadingLastModifyTimeTag = createLoadingDOM(brandName);
+    let loadingLastModifyTimeTag = createLoadingDOM(brandName,"__boss_time_tag");
     dom.appendChild(loadingLastModifyTimeTag);
   });
   let promiseList = [];
@@ -175,21 +176,4 @@ function createDOM(lastModifyTime, brandName, jobStatusDesc, postDescription,job
     jobDTO: jobDTO
   });
   return div;
-}
-
-function createLoadingDOM(brandName) {
-  const div = document.createElement("div");
-  div.classList.add("__boss_time_tag");
-  div.classList.add("__loading_tag");
-  renderTimeLoadingTag(div, brandName);
-  return div;
-}
-
-function hiddenLoadingDOM() {
-  var loadingTagList = document.querySelectorAll(".__loading_tag");
-  if (loadingTagList) {
-    loadingTagList.forEach((item) => {
-      item.style = "visibility: hidden;";
-    });
-  }
 }

@@ -73,6 +73,23 @@ export function renderTimeTag(
   divElement.classList.add('__time_tag_base_text_font');
 }
 
+export function createLoadingDOM(brandName,styleClass) {
+  const div = document.createElement("div");
+  div.classList.add(styleClass);
+  div.classList.add("__loading_tag");
+  renderTimeLoadingTag(div, brandName);
+  return div;
+}
+
+export function hiddenLoadingDOM() {
+  var loadingTagList = document.querySelectorAll(".__loading_tag");
+  if (loadingTagList) {
+    loadingTagList.forEach((item) => {
+      item.style = "visibility: hidden;";
+    });
+  }
+}
+
 export function renderTimeLoadingTag(divElement, brandName) {
   var timeText = '【正查找发布时间⌛︎】';
   var text = timeText;

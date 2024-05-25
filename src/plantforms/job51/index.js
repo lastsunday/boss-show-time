@@ -5,6 +5,8 @@ import {
   renderTimeTag,
   setupSortJobItem,
   renderSortJobItem,
+  createLoadingDOM,
+  hiddenLoadingDOM,
 } from "../../commonRender";
 
 export function getJob51Data(responseText) {
@@ -47,6 +49,15 @@ function mutationContainer() {
 
 // 解析数据，插入时间标签
 async function parseData(list, getListItem) {
+  list.forEach((item, index) => {
+    const dom = getListItem(index);
+    const { companyName } = item;
+    let loadingLastModifyTimeTag = createLoadingDOM(
+      companyName,
+      '__job51_time_tag'
+    );
+    dom.appendChild(loadingLastModifyTimeTag);
+  });
   await saveBrowseJob(list,PLATFORM_51JOB);
   var jobDTOList = await JobApi.getJobBrowseInfoByIds(getJobIds(list,PLATFORM_51JOB));
   list.forEach((item, index) => {
@@ -62,6 +73,7 @@ async function parseData(list, getListItem) {
     );
     dom.appendChild(tag);
   });
+  hiddenLoadingDOM();
   renderSortJobItem(list, getListItem);
 }
 
