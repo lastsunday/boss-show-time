@@ -17,7 +17,6 @@ export class Job{
     bossName;
     bossCompanyName;
     bossPosition;
-    dataSource;
     createDatetime;
     updateDatetime
 }

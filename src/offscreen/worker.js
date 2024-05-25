@@ -7,9 +7,11 @@ import { JobDTO } from '../dto/jobDTO';
 import { toHump } from '../utils';
 import { ChangeLogV1 } from './changeLog/changeLogV1';
 import { initChangeLog, getChangeLogList } from './changeLog';
+import { StatisticJobBrowseDTO } from '../dto/statisticJobBrowseDTO';
 debugLog('worker ready');
 
 var db;
+var initializing = false;
 
 export const WorkerBridge = {
   /**
@@ -27,17 +29,49 @@ export const WorkerBridge = {
       printErr: infoLog,
     }).then(function (sqlite3) {
       debugLog('Done initializing. Running app...');
-      try {
-        initDb(sqlite3);
+      if (!initializing) {
+        try {
+          initDb(sqlite3);
+          initializing = true;
+          postSuccessMessage(message);
+        } catch (e) {
+          postErrorMessage(message, 'init sqlite3 error : ' + e.message);
+        }
+      } else {
         postSuccessMessage(message);
-      } catch (e) {
-        postErrorMessage(message, 'init sqlite3 error : ' + e.message);
       }
     });
   },
   ping: function (message, param) {
     postSuccessMessage(message, 'pong');
   },
+
+  /**
+   *
+   * @param {Message} message
+   * @param {Job[]} param
+   */
+  batchAddOrUpdateJobBrowse: function (message, param) {
+    try {
+      const now = new Date();
+      db.exec({
+        sql: 'BEGIN TRANSACTION',
+      });
+        for (let i = 0; i < param.length; i++) {
+          insertJobAndBrowseHistory(param[i], now);
+      }
+      db.exec({
+        sql: 'COMMIT',
+      });
+      postSuccessMessage(message, {});
+    } catch (e) {
+      postErrorMessage(
+        message,
+        '[worker] addOrUpdateJobBrowse error : ' + e.message
+      );
+    }
+  },
+
   /**
    *
    * @param {Message} message
@@ -46,61 +80,10 @@ export const WorkerBridge = {
   addOrUpdateJobBrowse: function (message, param) {
     try {
       const now = new Date();
-      const SQL_JOB_BY_ID = `SELECT job_id,job_platform,job_url,job_name,job_company_name,job_location_name,job_address,job_longitude,job_latitude,job_description,job_degree_name,job_year,job_salary_min,job_salary_max,job_salary_total_month,boss_name,boss_company_name,boss_position,data_source,create_datetime,update_datetime FROM job WHERE job_id = ?`;
-      var rows = [];
       db.exec({
         sql: 'BEGIN TRANSACTION',
       });
-      db.exec({
-        sql: SQL_JOB_BY_ID,
-        rowMode: 'object', // 'array' (default), 'object', or 'stmt'
-        bind: [param.jobId],
-        resultRows: rows,
-      });
-      if (rows.length > 0) {
-        //skip
-      } else {
-        const SQL_INSERT_JOB = `
-      INSERT INTO job (job_id,job_platform,job_url,job_name,job_company_name,job_location_name,job_address,job_longitude,job_latitude,job_description,job_degree_name,job_year,job_salary_min,job_salary_max,job_salary_total_month,boss_name,boss_company_name,boss_position,data_source,create_datetime,update_datetime) VALUES ($job_id,$job_platform,$job_url,$job_name,$job_company_name,$job_location_name,$job_address,$job_longitude,$job_latitude,$job_description,$job_degree_name,$job_year,$job_salary_min,$job_salary_max,$job_salary_total_month,$boss_name,$boss_company_name,$boss_position,$data_source,$create_datetime,$update_datetime)
-    `;
-        db.exec({
-          sql: SQL_INSERT_JOB,
-          bind: {
-            $job_id: param.jobId,
-            $job_platform: param.jobPlatform,
-            $job_url: param.jobUrl,
-            $job_name: param.jobName,
-            $job_company_name: param.jobCompanyName,
-            $job_location_name: param.jobLocationName,
-            $job_address: param.jobAddress,
-            $job_longitude: param.jobLongitude,
-            $job_latitude: param.jobLatitude,
-            $job_description: param.jobDescription,
-            $job_degree_name: param.jobDegreeName,
-            $job_year: param.jobYear,
-            $job_salary_min: param.jobSalaryMin,
-            $job_salary_max: param.jobSalaryMax,
-            $job_salary_total_month: param.jobSalaryTotal,
-            $boss_name: param.bossName,
-            $boss_company_name: param.bossCompanyName,
-            $boss_position: param.bossPosition,
-            $data_source: param.dataSource,
-            $create_datetime: dayjs(now).format('YYYY-MM-DD HH:mm:ss'),
-            $update_datetime: dayjs(now).format('YYYY-MM-DD HH:mm:ss'),
-          },
-        });
-      }
-      const SQL_INSERT_JOB_BROWSE_HISTORY = `
-    INSERT INTO job_browse_history (job_id,job_visit_datetime,job_visit_type) VALUES ($job_id,$job_visit_datetime,$job_visit_type)
-  `;
-      db.exec({
-        sql: SQL_INSERT_JOB_BROWSE_HISTORY,
-        bind: {
-          $job_id: param.jobId,
-          $job_visit_datetime: dayjs(now).format('YYYY-MM-DD HH:mm:ss'),
-          $job_visit_type: 'SEARCH',
-        },
-      });
+      insertJobAndBrowseHistory(param, now);
       db.exec({
         sql: 'COMMIT',
       });
@@ -131,7 +114,7 @@ export const WorkerBridge = {
       var countRows = [];
       db.exec({
         sql: SQL_QUERY_JOB_BOWSE_HISTORY_GROUP_COUNT,
-        rowMode: 'object', // 'array' (default), 'object', or 'stmt'
+        rowMode: 'object',
         resultRows: countRows,
       });
       for (let i = 0; i < countRows.length; i++) {
@@ -140,13 +123,13 @@ export const WorkerBridge = {
       }
       var tempResultMap = new Map();
       const SQL_QUERY_JOB =
-        'SELECT job_id,job_platform,job_url,job_name,job_company_name,job_location_name,job_address,job_longitude,job_latitude,job_description,job_degree_name,job_year,job_salary_min,job_salary_max,job_salary_total_month,boss_name,boss_company_name,boss_position,data_source,create_datetime,update_datetime FROM job WHERE job_id in (' +
+        'SELECT job_id,job_platform,job_url,job_name,job_company_name,job_location_name,job_address,job_longitude,job_latitude,job_description,job_degree_name,job_year,job_salary_min,job_salary_max,job_salary_total_month,boss_name,boss_company_name,boss_position,create_datetime,update_datetime FROM job WHERE job_id in (' +
         ids +
         ')';
       var rows = [];
       db.exec({
         sql: SQL_QUERY_JOB,
-        rowMode: 'object', // 'array' (default), 'object', or 'stmt'
+        rowMode: 'object',
         resultRows: rows,
       });
       for (var i = 0; i < rows.length; i++) {
@@ -163,7 +146,9 @@ export const WorkerBridge = {
       for (let j = 0; j < param.length; j++) {
         let jobId = param[j];
         let target = tempResultMap.get(jobId);
-        target.browseCount = countMap.get(jobId);
+        if (target) {
+          target.browseCount = countMap.get(jobId);
+        }
         result.push(target);
       }
       postSuccessMessage(message, result);
@@ -174,6 +159,57 @@ export const WorkerBridge = {
       );
     }
   },
+  /**
+   *
+   * @param {Message} message
+   * @param {*} param
+   *
+   * @returns {StatisticJobBrowseDTO}
+   */
+  statisticJobBrowse: function (message, param) {
+    try {
+      let result = new StatisticJobBrowseDTO();
+      let now = dayjs();
+      let todayStart = now.startOf('day').format('YYYY-MM-DD HH:mm:ss');
+      let todayEnd = now.endOf('day').format('YYYY-MM-DD HH:mm:ss');
+      const SQL_QUERY_JOB_BOWSE_HISTORY_COUNT_TODAY =
+        'SELECT COUNT(*) AS count FROM job_browse_history WHERE job_visit_datetime >= $startDatetime AND job_visit_datetime <= $endDatetime';
+      var browseCountToday = [];
+      db.exec({
+        sql: SQL_QUERY_JOB_BOWSE_HISTORY_COUNT_TODAY,
+        rowMode: 'object',
+        resultRows: browseCountToday,
+        bind: {
+          $startDatetime: todayStart,
+          $endDatetime: todayEnd,
+        },
+      });
+      const SQL_QUERY_JOB_BOWSE_HISTORY_COUNT_TOTAL =
+        'SELECT COUNT(*) AS count FROM job_browse_history';
+      var browseTotalCount = [];
+      db.exec({
+        sql: SQL_QUERY_JOB_BOWSE_HISTORY_COUNT_TOTAL,
+        rowMode: 'object',
+        resultRows: browseTotalCount,
+      });
+      const SQL_QUERY_JOB_COUNT_TOTAL = 'SELECT COUNT(*) AS count FROM job;';
+      var jobTotalCount = [];
+      db.exec({
+        sql: SQL_QUERY_JOB_COUNT_TOTAL,
+        rowMode: 'object',
+        resultRows: jobTotalCount,
+      });
+      result.todayBrowseCount = browseCountToday[0].count;
+      result.totalBrowseCount = browseTotalCount[0].count;
+      result.totalJob = jobTotalCount[0].count;
+      postSuccessMessage(message, result);
+    } catch (e) {
+      postErrorMessage(
+        message,
+        '[worker] statisticJobBrowse error : ' + e.message
+      );
+    }
+  },
 };
 
 const ACTION_FUNCTION = new Map();
@@ -181,6 +217,60 @@ var keys = Object.keys(WorkerBridge);
 for (var i = 0; i < keys.length; i++) {
   var key = keys[i];
   ACTION_FUNCTION.set(key, WorkerBridge[key]);
+}
+
+function insertJobAndBrowseHistory(param, now) {
+  let rows = [];
+  const SQL_JOB_BY_ID = `SELECT job_id,job_platform,job_url,job_name,job_company_name,job_location_name,job_address,job_longitude,job_latitude,job_description,job_degree_name,job_year,job_salary_min,job_salary_max,job_salary_total_month,boss_name,boss_company_name,boss_position,create_datetime,update_datetime FROM job WHERE job_id = ?`;
+  db.exec({
+    sql: SQL_JOB_BY_ID,
+    rowMode: 'object',
+    bind: [param.jobId],
+    resultRows: rows,
+  });
+  if (rows.length > 0) {
+    //skip
+  } else {
+    const SQL_INSERT_JOB = `
+  INSERT INTO job (job_id,job_platform,job_url,job_name,job_company_name,job_location_name,job_address,job_longitude,job_latitude,job_description,job_degree_name,job_year,job_salary_min,job_salary_max,job_salary_total_month,boss_name,boss_company_name,boss_position,create_datetime,update_datetime) VALUES ($job_id,$job_platform,$job_url,$job_name,$job_company_name,$job_location_name,$job_address,$job_longitude,$job_latitude,$job_description,$job_degree_name,$job_year,$job_salary_min,$job_salary_max,$job_salary_total_month,$boss_name,$boss_company_name,$boss_position,$create_datetime,$update_datetime)
+`;
+    db.exec({
+      sql: SQL_INSERT_JOB,
+      bind: {
+        $job_id: param.jobId,
+        $job_platform: param.jobPlatform,
+        $job_url: param.jobUrl,
+        $job_name: param.jobName,
+        $job_company_name: param.jobCompanyName,
+        $job_location_name: param.jobLocationName,
+        $job_address: param.jobAddress,
+        $job_longitude: param.jobLongitude,
+        $job_latitude: param.jobLatitude,
+        $job_description: param.jobDescription,
+        $job_degree_name: param.jobDegreeName,
+        $job_year: param.jobYear,
+        $job_salary_min: param.jobSalaryMin,
+        $job_salary_max: param.jobSalaryMax,
+        $job_salary_total_month: param.jobSalaryTotal,
+        $boss_name: param.bossName,
+        $boss_company_name: param.bossCompanyName,
+        $boss_position: param.bossPosition,
+        $create_datetime: dayjs(now).format('YYYY-MM-DD HH:mm:ss'),
+        $update_datetime: dayjs(now).format('YYYY-MM-DD HH:mm:ss'),
+      },
+    });
+  }
+  const SQL_INSERT_JOB_BROWSE_HISTORY = `
+INSERT INTO job_browse_history (job_id,job_visit_datetime,job_visit_type) VALUES ($job_id,$job_visit_datetime,$job_visit_type)
+`;
+  db.exec({
+    sql: SQL_INSERT_JOB_BROWSE_HISTORY,
+    bind: {
+      $job_id: param.jobId,
+      $job_visit_datetime: dayjs(now).format('YYYY-MM-DD HH:mm:ss'),
+      $job_visit_type: 'SEARCH',
+    },
+  });
 }
 
 const initDb = function (sqlite3) {
@@ -206,6 +296,29 @@ const initDb = function (sqlite3) {
   let oldVersion = 0;
   let newVersion = changelogList.length;
   try {
+    const SQL_SELECT_SCHEMA_COUNT =
+      'SELECT COUNT(*) AS count FROM sqlite_schema;';
+    let schemaCount = 0;
+    let schemaCountRow = [];
+    db.exec({
+      sql: SQL_SELECT_SCHEMA_COUNT,
+      rowMode: 'object',
+      resultRows: schemaCountRow,
+    });
+    if (schemaCountRow.length > 0) {
+      schemaCount = schemaCountRow[0].count;
+    }
+    infoLog('[DB] current schemaCount = ' + schemaCount);
+    if (schemaCount == 0) {
+      const SQL_PRAGMA_AUTO_VACUUM = 'PRAGMA auto_vacuum = 1';
+      db.exec(SQL_PRAGMA_AUTO_VACUUM);
+      infoLog('[DB] execute ' + SQL_PRAGMA_AUTO_VACUUM);
+    }
+  } catch (e) {
+    console.error('[DB] checking schema fail,' + e.message);
+    return;
+  }
+  try {
     db.exec({
       sql: 'BEGIN TRANSACTION',
     });
@@ -219,7 +332,7 @@ const initDb = function (sqlite3) {
     var rows = [];
     db.exec({
       sql: SQL_QUERY_VERSION,
-      rowMode: 'object', // 'array' (default), 'object', or 'stmt'
+      rowMode: 'object',
       resultRows: rows,
     });
     if (rows.length > 0) {
