@@ -16,6 +16,7 @@ const SQL_CREATE_TABLE_JOB = `
     job_salary_min TEXT,
     job_salary_max TEXT,
     job_salary_total_month TEXT,
+    job_first_publish_datetime DATETIME,
     boss_name TEXT,
     boss_company_name  TEXT,
     boss_position TEXT,

@@ -14,6 +14,7 @@ export class Job{
     jobSalaryMin;
     jobSalaryMax;
     jobSalaryTotalMonth;
+    jobFirstPublishDatetime;
     bossName;
     bossCompanyName;
     bossPosition;

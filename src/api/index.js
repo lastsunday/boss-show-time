@@ -2,6 +2,8 @@ import { Job } from "../domain/job";
 import { JobDTO } from "../dto/jobDTO";
 import { invoke } from "./bridge";
 import { StatisticJobBrowseDTO } from "../dto/statisticJobBrowseDTO"; 
+import { SearchJobBO } from "../bo/searchJobBO";
+import { SearchJobDTO } from "../dto/searchJobDTO";
 
 export const JobApi = {
 
@@ -20,6 +22,17 @@ export const JobApi = {
      */
     addOrUpdateJobBrowse: async function(job){
         await invoke(this.addOrUpdateJobBrowse.name,job);
+    },
+
+    /**
+     * 
+     * @param {SearchJobBO[]} param 
+     * 
+     * @returns {SearchJobDTO[]}
+     */
+    searchJob: async function(param){
+        var result = await invoke(this.searchJob.name,param);
+        return result.data;
     },
 
     /**

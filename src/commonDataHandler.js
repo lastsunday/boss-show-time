@@ -4,10 +4,12 @@ import {
   PLATFORM_ID_PREFIX_51JOB,
   PLATFORM_LAGOU,
   PLATFORM_ZHILIAN,
+  JOB_STATUS_DESC_NEWEST,
 } from './common';
 import { Job } from './domain/job';
 import { JobApi } from './api';
 import { infoLog } from './log';
+import dayjs from 'dayjs';
 
 export async function saveBrowseJob(list, platform) {
   infoLog(
@@ -75,6 +77,7 @@ function handleLagouData(list) {
       workYear,
       salary,
       publisherId,
+      createTime,
     } = item;
     job.jobId = genId(positionId, PLATFORM_LAGOU);
     job.jobPlatform = PLATFORM_LAGOU;
@@ -91,6 +94,7 @@ function handleLagouData(list) {
     job.jobSalaryMin = salary;
     job.jobSalaryMax = salary;
     job.jobSalaryTotalMonth = '';
+    job.jobFirstPublishDatetime = createTime;
     job.bossName = publisherId;
     job.bossCompanyName = companyFullName;
     job.bossPosition = null;
@@ -115,6 +119,7 @@ function handleZhilianData(list) {
       education,
       workingExp,
       salaryReal,
+      firstPublishTime,
     } = item;
     const { staffName, hrJob } = item.staffCard;
     job.jobId = genId(jobId, PLATFORM_ZHILIAN);
@@ -132,6 +137,7 @@ function handleZhilianData(list) {
     job.jobSalaryMin = salaryReal;
     job.jobSalaryMax = salaryReal;
     job.jobSalaryTotalMonth = '';
+    job.jobFirstPublishDatetime = firstPublishTime;
     job.bossName = staffName;
     job.bossCompanyName = companyName;
     job.bossPosition = hrJob;
@@ -159,10 +165,12 @@ function handleBossData(list) {
       degreeName,
       experienceName,
       salaryDesc,
+      jobStatusDesc,
+      jobUrl,
     } = zpData.jobInfo;
     job.jobId = genId(encryptId, PLATFORM_BOSS);
     job.jobPlatform = PLATFORM_BOSS;
-    job.jobUrl = '';
+    job.jobUrl = jobUrl;
     job.jobName = jobName;
     job.jobCompanyName = brandName;
     job.jobLocationName = locationName;
@@ -175,6 +183,12 @@ function handleBossData(list) {
     job.jobSalaryMin = salaryDesc;
     job.jobSalaryMax = salaryDesc;
     job.jobSalaryTotalMonth = '';
+    if(jobStatusDesc == JOB_STATUS_DESC_NEWEST.key){
+      //招聘状态为最新，则代表一周内发布的岗位。记录入库的时间设置取今天零点。
+      job.jobFirstPublishDatetime = dayjs(new Date()).startOf('day');
+    }else{
+      job.jobFirstPublishDatetime = null;
+    }
     job.bossName = name;
     job.bossCompanyName = bossBranchName;
     job.bossPosition = title;
@@ -203,6 +217,7 @@ function handle51JobData(list) {
       jobSalaryMax,
       hrName,
       hrPosition,
+      confirmDateString,
     } = item;
     job.jobId = genId(jobId, PLATFORM_51JOB);
     job.jobPlatform = PLATFORM_51JOB;
@@ -219,6 +234,7 @@ function handle51JobData(list) {
     job.jobSalaryMin = jobSalaryMin;
     job.jobSalaryMax = jobSalaryMax;
     job.jobSalaryTotalMonth = '';
+    job.jobFirstPublishDatetime = confirmDateString;
     job.bossName = hrName;
     job.bossCompanyName = fullCompanyName;
     job.bossPosition = hrPosition;
