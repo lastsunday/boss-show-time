@@ -5,6 +5,7 @@ import {
   renderSortJobItem,
   createLoadingDOM,
   hiddenLoadingDOM,
+  finalRender,
 } from "../../commonRender";
 import { getRandomInt } from "../../utils";
 import onlineFilter from "./onlineFilter";
@@ -164,6 +165,7 @@ function parseBossData(list, getListItem) {
           });
           hiddenLoadingDOM();
           renderSortJobItem(list, getListItem);
+          finalRender(jobDTOList);
         })
         .catch((error) => {
           console.log(error);
